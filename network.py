@@ -23,8 +23,11 @@ class FEATURE_EXTRACTOR(nn.Module):
         o = F.relu(self.fc(o))
         return o
 
+    def set_weights(self, weights):
+        self.load_state_dict(weights)
 
-# This is the Q function, output logits. In section 3.2.2 they used 2 fc at the end
+
+# This is the Q function, output expected rewards. In section 3.2.2 they used 2 fc at the end
 class DQN_POLICY(nn.Module):
     def __init__(self):
         super(DQN_POLICY, self).__init__()
@@ -34,14 +37,22 @@ class DQN_POLICY(nn.Module):
         self.fc_2 = nn.Linear(32, 6)                                        # action space in my env is 6
 
     # M is all prev mem(b,t,128), o is features(b,128)
-    def forward(self, M, o):
-        C, _ = self.encoder(M, M, M, need_weights=False)
+    def forward(self, M, o, encoder_masks, decoder_masks):
+        if encoder_masks is not None:
+            C, _ = self.encoder(M, M, M, need_weights=False, attn_mask=encoder_masks)
+        else:
+            C, _ = self.encoder(M, M, M, need_weights=False)
         o = o.unsqueeze(1)
-        decoder_out, _ = self.decoder(o, C, C, need_weights=False)
+        if decoder_masks is not None:
+            decoder_out, _ = self.decoder(o, C, C, need_weights=False, attn_mask=decoder_masks)
+        else:
+            decoder_out, _ = self.decoder(o, C, C, need_weights=False)
         decoder_out = self.fc_2(F.relu(self.fc_1(decoder_out)))
 
         return decoder_out.squeeze(1)
 
+    def set_weights(self, weights):
+        self.load_state_dict(weights)
 
 
 if __name__ == '__main__':
@@ -55,7 +66,7 @@ if __name__ == '__main__':
     """
     # test for decoder
     model = DQN_POLICY().cuda()
-    m = torch.randn(10, 20, 128).cuda()
-    feature = torch.randn(10, 128).cuda()
-    out = model(m,feature)
+    m = torch.randn(10, 21, 128).cuda()
+    # feature = torch.randn(10, 128).cuda()
+    out = model(m)
 
